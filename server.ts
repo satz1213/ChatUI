@@ -1,12 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { existsSync } from 'fs';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const isProd = existsSync(join(__dirname, 'dist'));
+const distPath = join(process.cwd(), 'dist');
+const isProd = existsSync(distPath);
+
+console.log(`Working dir: ${process.cwd()}`);
+console.log(`Dist path:   ${distPath}`);
+console.log(`Dist exists: ${isProd}`);
 
 const app = express();
 app.use(cors());
@@ -14,7 +17,7 @@ app.use(express.json({ limit: '10mb' }));
 
 // Serve the built React app in production
 if (isProd) {
-  app.use(express.static(join(__dirname, 'dist')));
+  app.use(express.static(distPath));
 }
 
 interface ChatMessage {
@@ -70,16 +73,11 @@ app.post('/api/chat', async (req, res) => {
 // SPA fallback — sends index.html for any non-API route
 if (isProd) {
   app.get('*', (_req, res) => {
-    res.sendFile(join(__dirname, 'dist', 'index.html'));
+    res.sendFile(join(distPath, 'index.html'));
   });
 }
 
 const PORT = Number(process.env.PORT ?? 3001);
 app.listen(PORT, () => {
-  if (isProd) {
-    console.log(`App running → http://localhost:${PORT}`);
-  } else {
-    console.log(`API server → http://localhost:${PORT}`);
-    console.log(`UI (dev)   → http://localhost:5173`);
-  }
+  console.log(`Server listening on port ${PORT} (prod=${isProd})`);
 });
