@@ -5,17 +5,12 @@ import './App.css';
 export default function App() {
   const [apiKey, setApiKey] = useState<string>(() => sessionStorage.getItem('claude_api_key') ?? '');
   const [keyDraft, setKeyDraft] = useState('');
-  const [mcpUrlDraft, setMcpUrlDraft] = useState(sessionStorage.getItem('mcp_server_url') ?? '');
-  const [mcpTokenDraft, setMcpTokenDraft] = useState(sessionStorage.getItem('mcp_auth_token') ?? '');
-  const [mcpServerUrl, setMcpServerUrl] = useState<string>(sessionStorage.getItem('mcp_server_url') ?? '');
-  const [mcpAuthToken, setMcpAuthToken] = useState<string>(sessionStorage.getItem('mcp_auth_token') ?? '');
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState<StreamingMessage | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [input, setInput] = useState('');
   const [showKeySetup, setShowKeySetup] = useState(!sessionStorage.getItem('claude_api_key'));
   const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
-  const [showMcpFields, setShowMcpFields] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -29,19 +24,6 @@ export default function App() {
     if (!trimmed) return;
     sessionStorage.setItem('claude_api_key', trimmed);
     setApiKey(trimmed);
-
-    const url = mcpUrlDraft.trim();
-    const token = mcpTokenDraft.trim();
-    if (url) {
-      sessionStorage.setItem('mcp_server_url', url);
-      sessionStorage.setItem('mcp_auth_token', token);
-    } else {
-      sessionStorage.removeItem('mcp_server_url');
-      sessionStorage.removeItem('mcp_auth_token');
-    }
-    setMcpServerUrl(url);
-    setMcpAuthToken(token);
-
     setKeyDraft('');
     setShowKeySetup(false);
     setTimeout(() => textareaRef.current?.focus(), 50);
@@ -71,19 +53,13 @@ export default function App() {
     let completed = false;
 
     try {
-      const body: Record<string, unknown> = {
-        messages: nextMessages.map(({ role, content }) => ({ role, content })),
-        apiKey,
-      };
-      if (mcpServerUrl) {
-        body.mcpServerUrl = mcpServerUrl;
-        body.mcpAuthToken = mcpAuthToken;
-      }
-
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          messages: nextMessages.map(({ role, content }) => ({ role, content })),
+          apiKey,
+        }),
       });
 
       if (!response.ok || !response.body) {
@@ -143,6 +119,7 @@ export default function App() {
         }
       }
 
+      // Stream closed without a 'done' event — surface whatever we got
       if (!completed) {
         setMessages(prev => [
           ...prev,
@@ -171,7 +148,7 @@ export default function App() {
         setIsStreaming(false);
       }
     }
-  }, [input, isStreaming, apiKey, messages, mcpServerUrl, mcpAuthToken]);
+  }, [input, isStreaming, apiKey, messages]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -205,39 +182,6 @@ export default function App() {
             onKeyDown={e => e.key === 'Enter' && saveKey()}
             autoFocus
           />
-
-          <button
-            className="mcp-toggle"
-            type="button"
-            onClick={() => setShowMcpFields(v => !v)}
-          >
-            {showMcpFields ? '▾' : '▸'} Salesforce MCP (optional)
-          </button>
-
-          {showMcpFields && (
-            <div className="mcp-fields">
-              <label className="mcp-label">Salesforce MCP Server URL</label>
-              <input
-                className="key-input"
-                type="text"
-                placeholder="https://your-org.my.salesforce.com/mcp/v1"
-                value={mcpUrlDraft}
-                onChange={e => setMcpUrlDraft(e.target.value)}
-              />
-              <label className="mcp-label">Salesforce Auth Token</label>
-              <input
-                className="key-input"
-                type="password"
-                placeholder="OAuth access token"
-                value={mcpTokenDraft}
-                onChange={e => setMcpTokenDraft(e.target.value)}
-              />
-              <p className="key-note" style={{ marginTop: '6px' }}>
-                Find the URL in your Salesforce org Setup → MCP or from your claude.ai integration settings.
-              </p>
-            </div>
-          )}
-
           <button className="key-btn" onClick={saveKey} disabled={!keyDraft.trim()}>
             Start Chatting
           </button>
@@ -256,7 +200,6 @@ export default function App() {
         <div className="header-brand">
           <span className="header-logo">⬡</span>
           <span>Claude Chat</span>
-          {mcpServerUrl && <span className="mcp-badge">Salesforce</span>}
         </div>
         <div className="header-actions">
           <button className="btn-ghost" onClick={() => setMessages([])}>
@@ -273,11 +216,7 @@ export default function App() {
           <div className="empty-state">
             <div className="empty-logo">⬡</div>
             <h2>How can I help you?</h2>
-            <p>
-              {mcpServerUrl
-                ? 'Claude Opus 4.8 with Salesforce MCP'
-                : 'Powered by Claude Opus 4.8 with adaptive thinking'}
-            </p>
+            <p>Powered by Claude Opus 4.8 with adaptive thinking</p>
           </div>
         )}
 
